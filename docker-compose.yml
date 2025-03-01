@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: r-kawano-research-python
+    container_name: bram-model
     env_file:
       - ".env"
     tty: true

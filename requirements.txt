@@ -1,6 +1,6 @@
 python-shogi
-cshogi
 torch
 numpy
 pandas
 matplotlib
+tqdm
