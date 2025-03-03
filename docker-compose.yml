@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE}
     container_name: bram-model
     env_file:
       - ".env"
