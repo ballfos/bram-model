@@ -20,7 +20,7 @@ from pprint import pprint
 import numpy as np
 import torch
 from torch import nn, optim
-from tqdm import tqdm
+from tqdm import tqdm, trange,
 
 # 定数
 FEATURE_KEYS = (
@@ -98,26 +98,37 @@ class ShogiModel(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
+        
 
 
 def main(args):
     # モデルの初期化
-    model = ShogiModel().to("cuda")
+    model = ShogiModel().to(args.device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters())
 
     # データセットの初期化
     dataset = ShogiIterableDataset(args.input, args.batch_size)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=None)
-
+    
     # 学習
-    for batch in tqdm(dataloader, total=len(dataset) // args.batch_size):
-        loc, opp_loc, probability = batch
-        optimizer.zero_grad()
-        output = model(loc, opp_loc)
-        loss = criterion(output, probability)
-        loss.backward()
-        optimizer.step()
+    model.train()
+    for epoch in trange(args.epoch):
+        total_loss = 0
+        for loc, opp_loc, probability in dataloader:
+            loc = loc.to(args.device)
+            opp_loc = opp_loc.to(args.device)
+            probability = probability.to(args.device)
+
+            optimizer.zero_grad()
+            output = model(loc, opp_loc)
+            loss = criterion(output, probability)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+
+        tqdm.write(f"epoch: {epoch}, loss: {total_loss}")
+
 
     # 試しに推論
     model.eval()
@@ -132,6 +143,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-i", "--input", type=str, default="data/extracted.csv")
     parser.add_argument("-o", "--output", type=str, default="model.pth")
+    parser.add_argument("-d", "--device", type=str, default="cuda")
     parser.add_argument("-e", "--epoch", type=int, default=10)
     parser.add_argument("-b", "--batch_size", type=int, default=64)
     args = parser.parse_args()
