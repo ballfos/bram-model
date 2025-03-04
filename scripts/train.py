@@ -7,7 +7,9 @@ Description:
 Options:
     -i, --input:  入力データセットのパス
     -o, --output: モデルの保存先のパス
+    -d, --device: 学習に使用するデバイス (cpu | cuda)
     -e, --epoch:  学習エポック数
+    -b, --batch_size: バッチサイズ
 """
 
 import argparse
@@ -20,7 +22,10 @@ from pprint import pprint
 import numpy as np
 import torch
 from torch import nn, optim
-from tqdm import tqdm, trange,
+from tqdm import tqdm, trange
+
+sys.path.append(os.path.dirname(__file__))
+from model import ShogiModel
 
 # 定数
 FEATURE_KEYS = (
@@ -66,51 +71,16 @@ class ShogiIterableDataset(torch.utils.data.IterableDataset):
         return sum(1 for _ in open(self.file_path))
 
 
-class ShogiModel(nn.Module):
-    def __init__(self):
-        super(ShogiModel, self).__init__()
-        self.loc_convs = nn.Sequential(
-            nn.Conv2d(in_channels=14, out_channels=32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
-            nn.ReLU(),
-        )
-        self.opp_loc_convs = nn.Sequential(
-            nn.Conv2d(in_channels=14, out_channels=32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
-            nn.ReLU(),
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(128 * 9 * 9 * 2, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1),
-        )
-
-    def forward(self, loc, opp_loc):
-        loc = self.loc_convs(loc)
-        opp_loc = self.opp_loc_convs(opp_loc)
-        x = torch.cat([loc, opp_loc], dim=1)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
-        
-
-
 def main(args):
     # モデルの初期化
     model = ShogiModel().to(args.device)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters())
 
     # データセットの初期化
     dataset = ShogiIterableDataset(args.input, args.batch_size)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=None)
-    
+
     # 学習
     model.train()
     for epoch in trange(args.epoch):
@@ -128,7 +98,6 @@ def main(args):
             total_loss += loss.item()
 
         tqdm.write(f"epoch: {epoch}, loss: {total_loss}")
-
 
     # 試しに推論
     model.eval()
