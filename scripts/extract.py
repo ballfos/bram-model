@@ -11,10 +11,7 @@ Options:
 """
 
 import argparse
-import base64
-import os
 import random
-import sys
 import warnings
 
 import numpy as np
