@@ -86,7 +86,8 @@ def main(args):
     # 試しに推論
     model.eval()
     output = model(loc, opp_loc)
-    pprint(output)
+    for i in range(10):
+        print(f"probability: {probability[i].item()}, output: {output[i].item()}")
 
     # モデルの保存
     torch.save(model.state_dict(), args.output)
