@@ -14,12 +14,12 @@ Options:
 
 import argparse
 import ast
-import csv
 import os
 import sys
 from pprint import pprint
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn, optim
 from tqdm import tqdm, trange
@@ -34,41 +34,23 @@ FEATURE_KEYS = (
 )
 
 
-class ShogiIterableDataset(torch.utils.data.IterableDataset):
-    def __init__(self, file_path, batch_size):
-        self.file_path = file_path
-        self.batch_size = batch_size
-
-    def __iter__(self):
-        with open(self.file_path, "r") as f:
-            reader = csv.DictReader(f)
-            loc_batch = []
-            opp_loc_batch = []
-            probability_batch = []
-            for row in reader:
-                loc_batch.append(ast.literal_eval(row["loc"]))
-                opp_loc_batch.append(ast.literal_eval(row["opp_loc"]))
-                probability_batch.append(float(row["probability"]))
-                if len(loc_batch) == self.batch_size:
-                    yield (
-                        torch.tensor(loc_batch, dtype=torch.float32),
-                        torch.tensor(opp_loc_batch, dtype=torch.float32),
-                        torch.tensor(probability_batch, dtype=torch.float32).view(
-                            -1, 1
-                        ),
-                    )
-                    loc_batch = []
-                    opp_loc_batch = []
-                    probability_batch = []
-            if len(loc_batch) > 0:
-                yield (
-                    torch.tensor(loc_batch, dtype=torch.float32),
-                    torch.tensor(opp_loc_batch, dtype=torch.float32),
-                    torch.tensor(probability_batch, dtype=torch.float32).view(-1, 1),
-                )
+class ShogiDataset(torch.utils.data.Dataset):
+    def __init__(self, file_path):
+        df = pd.read_csv(file_path, usecols=("probability",) + FEATURE_KEYS)
+        for key in FEATURE_KEYS:
+            df[key] = df[key].apply(ast.literal_eval)
+        self.data = df
 
     def __len__(self):
-        return sum(1 for _ in open(self.file_path))
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        row = self.data.iloc[idx]
+        return (
+            torch.tensor(row["loc"], dtype=torch.float32),
+            torch.tensor(row["opp_loc"], dtype=torch.float32),
+            torch.tensor(row["probability"], dtype=torch.float32),
+        )
 
 
 def main(args):
@@ -78,8 +60,10 @@ def main(args):
     optimizer = optim.Adam(model.parameters())
 
     # データセットの初期化
-    dataset = ShogiIterableDataset(args.input, args.batch_size)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=None)
+    dataset = ShogiDataset(args.input)
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=True
+    )
 
     # 学習
     model.train()
@@ -88,7 +72,7 @@ def main(args):
         for loc, opp_loc, probability in dataloader:
             loc = loc.to(args.device)
             opp_loc = opp_loc.to(args.device)
-            probability = probability.to(args.device)
+            probability = probability.to(args.device).view(-1, 1)
 
             optimizer.zero_grad()
             output = model(loc, opp_loc)
