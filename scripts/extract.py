@@ -11,10 +11,7 @@ Options:
 """
 
 import argparse
-import base64
-import os
 import random
-import sys
 import warnings
 
 import numpy as np
@@ -81,7 +78,7 @@ def gen_correct_data(board: shogi.Board, prev_sfen: str, side: int) -> pd.DataFr
         "sfen": board.sfen(),
         "probability": 1.0,
     } | extract_features(board, side)
-    return pd.DataFrame([row])
+    return pd.DataFrame([row] * INCORRECT_DATA_NUM)
 
 
 def gen_incorrect_data(board: shogi.Board, side: int) -> pd.DataFrame:
@@ -146,9 +143,6 @@ def main(args):
         side = shogi.BLACK if row["side"] == "black" else shogi.WHITE
         data = extract_sfen(row["sfen_body"], side)
         result_df = pd.concat([result_df, data], axis=0)
-
-    # 重複データの削除
-    result_df = result_df.drop_duplicates(subset=["prev_sfen", "sfen", "probability"])
 
     # データの保存
     result_df.to_csv(args.output, index=False)
