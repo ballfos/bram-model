@@ -13,10 +13,9 @@ Options:
 """
 
 import argparse
-import ast
+import json
 import os
 import sys
-from pprint import pprint
 
 import numpy as np
 import pandas as pd
@@ -35,11 +34,19 @@ FEATURE_KEYS = (
 
 
 class ShogiDataset(torch.utils.data.Dataset):
-    def __init__(self, file_path):
-        df = pd.read_csv(file_path, usecols=("probability",) + FEATURE_KEYS)
-        for key in FEATURE_KEYS:
-            df[key] = df[key].apply(ast.literal_eval)
-        self.data = df
+    def __init__(self, file_path, chunk_size=8192):
+        self.data = []
+        lines = sum(1 for _ in open(file_path))
+        for chunk in tqdm(
+            pd.read_csv(
+                file_path, usecols=("probability",) + FEATURE_KEYS, chunksize=chunk_size
+            ),
+            total=lines // chunk_size + 1,
+        ):
+            for key in FEATURE_KEYS:
+                chunk[key] = chunk[key].apply(json.loads)
+            self.data.append(chunk)
+        self.data = pd.concat(self.data, ignore_index=True)
 
     def __len__(self):
         return len(self.data)
@@ -55,17 +62,20 @@ class ShogiDataset(torch.utils.data.Dataset):
 
 def main(args):
     # モデルの初期化
+    print("Initializing model...")
     model = ShogiModel().to(args.device)
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters())
 
     # データセットの初期化
+    print("Loading dataset...")
     dataset = ShogiDataset(args.input)
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=True
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=4
     )
 
     # 学習
+    print("Training model...")
     model.train()
     for epoch in trange(args.epoch):
         total_loss = 0
