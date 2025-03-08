@@ -130,9 +130,6 @@ def main(args):
     # データフレームの読み込み
     df = pd.read_csv(args.input)
 
-    # ユーザの絞り込み
-    df = df[df["username"] == USER_NAME]
-
     # 特徴量の抽出
     result_df = pd.DataFrame(columns=RESULT_HEADER)
     if args.num is not None:
@@ -141,7 +138,7 @@ def main(args):
     for index, row in tqdm(df.iterrows(), total=len(df)):
         # 対局の各局面に対して特徴量を抽出
         side = shogi.BLACK if row["side"] == "black" else shogi.WHITE
-        data = extract_sfen(row["sfen_body"], side)
+        data = extract_sfen(row["sfen"], side)
         result_df = pd.concat([result_df, data], axis=0)
 
     # データの保存
@@ -150,7 +147,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=str, default="data/kifu.csv")
+    parser.add_argument("-i", "--input", type=str, default="data/merged.csv")
     parser.add_argument("-o", "--output", type=str, default="data/extracted.csv")
     parser.add_argument("-n", "--num", type=int, default=None)
     args = parser.parse_args()
