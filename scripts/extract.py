@@ -11,7 +11,9 @@ Options:
 """
 
 import argparse
+import concurrent.futures
 import random
+import sys
 import warnings
 
 import numpy as np
@@ -37,7 +39,7 @@ RESULT_HEADER = (
 
 # パラメータ
 USER_NAME = "garden0905"
-INCORRECT_DATA_NUM = 4
+INCORRECT_DATA_NUM = 2
 MOVE_NUMBER_LIMIT = 100
 
 
@@ -130,16 +132,26 @@ def main(args):
     # データフレームの読み込み
     df = pd.read_csv(args.input)
 
-    # 特徴量の抽出
-    result_df = pd.DataFrame(columns=RESULT_HEADER)
     if args.num is not None:
         df = df.sample(n=args.num)
 
-    for index, row in tqdm(df.iterrows(), total=len(df)):
-        # 対局の各局面に対して特徴量を抽出
-        side = shogi.BLACK if row["side"] == "black" else shogi.WHITE
-        data = extract_sfen(row["sfen"], side)
-        result_df = pd.concat([result_df, data], axis=0)
+    # 特徴量の抽出の並列処理
+    with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+        results = list(
+            tqdm(
+                executor.map(
+                    extract_sfen,
+                    df["sfen"].values,
+                    df["side"].map({"black": shogi.BLACK, "white": shogi.WHITE}).values,
+                ),
+                total=len(df),
+            )
+        )
+
+    # 結果の結合
+    print("Concatenating results...", file=sys.stderr)
+    result_df = pd.concat(results, axis=0)
+    print(f"length of result data: {len(result_df)}", file=sys.stderr)
 
     # データの保存
     result_df.to_csv(args.output, index=False)
