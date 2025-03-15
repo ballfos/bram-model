@@ -30,6 +30,8 @@ from model import ShogiModel
 FEATURE_KEYS = (
     "loc",
     "opp_loc",
+    "hand",       
+    "opp_hand",   
 )
 
 
@@ -56,6 +58,8 @@ class ShogiDataset(torch.utils.data.Dataset):
         return (
             torch.tensor(row["loc"], dtype=torch.float32),
             torch.tensor(row["opp_loc"], dtype=torch.float32),
+            torch.tensor(row["hand"], dtype=torch.float32),
+            torch.tensor(row["opp_hand"], dtype=torch.float32),
             torch.tensor(row["probability"], dtype=torch.float32),
         )
 
@@ -79,13 +83,15 @@ def main(args):
     model.train()
     for epoch in trange(args.epoch):
         total_loss = 0
-        for loc, opp_loc, probability in dataloader:
+        for loc, opp_loc,hand,opp_hand,probability in dataloader:
             loc = loc.to(args.device)
             opp_loc = opp_loc.to(args.device)
+            hand = hand.to(args.device)  
+            opp_hand = opp_hand.to(args.device)  
             probability = probability.to(args.device).view(-1, 1)
 
             optimizer.zero_grad()
-            output = model(loc, opp_loc)
+            output = model(loc, opp_loc,hand,opp_hand)
             loss = criterion(output, probability)
             loss.backward()
             optimizer.step()
@@ -95,7 +101,7 @@ def main(args):
 
     # 試しに推論
     model.eval()
-    output = model(loc, opp_loc)
+    output = model(loc, opp_loc,hand,opp_hand)
     for i in range(10):
         print(f"probability: {probability[i].item()}, output: {output[i].item()}")
 
